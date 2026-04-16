@@ -16,6 +16,7 @@ from rich.console import Console
 
 from . import engine, trader
 from .config import settings
+from .logging_setup import log
 from .session import browser_session
 
 
@@ -29,16 +30,16 @@ async def run_forever() -> None:
         async def scan():
             try:
                 result = await engine.scan_cycle(page)
-                console.log(f"scan: {result}")
+                log.info("scan: %s", result)
             except trader.TradingPaused as e:
-                console.log(f"paused: {e}")
+                log.warning("paused: %s", e)
 
         async def reprice():
             try:
                 result = await engine.reprice_cycle(page)
-                console.log(f"reprice: {result}")
+                log.info("reprice: %s", result)
             except trader.TradingPaused as e:
-                console.log(f"paused: {e}")
+                log.warning("paused: %s", e)
 
         # Jitter initial run time and interval so we don't hit the same minute every hour.
         scheduler.add_job(
@@ -57,7 +58,7 @@ async def run_forever() -> None:
             ),
         )
         scheduler.start()
-        console.log("Agent running. Ctrl+C to stop.")
+        log.info("Agent running. Ctrl+C to stop.")
         try:
             while True:
                 await asyncio.sleep(3600)

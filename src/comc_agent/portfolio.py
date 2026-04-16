@@ -137,6 +137,23 @@ def cash_spent() -> float:
         return float(row["s"] or 0.0)
 
 
+def closed_positions() -> list[sqlite3.Row]:
+    with connect() as c:
+        return list(c.execute(
+            "SELECT * FROM positions WHERE status = 'sold' "
+            "AND sold_price_usd IS NOT NULL"
+        ))
+
+
+def realized_pnl_total() -> float:
+    """Sum of net P&L across every closed position."""
+    from .valuation import realized_pnl
+    total = 0.0
+    for r in closed_positions():
+        total += realized_pnl(r["cost_basis_usd"], r["sold_price_usd"])
+    return total
+
+
 def player_exposure_usd(player: str | None) -> float:
     if not player:
         return 0.0

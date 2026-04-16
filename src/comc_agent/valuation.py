@@ -7,9 +7,11 @@ from .config import settings
 from .models import BuyCandidate, CompStats, Listing, Sale
 
 
-# COMC takes a ~20% seller fee on sales within the marketplace. We use this to
-# estimate *net* profit when evaluating a buy.
+# COMC takes a ~20% seller fee on sales within the marketplace plus a flat
+# per-card processing fee. Numbers approximate COMC's public fee schedule for
+# standard sellers. We use these to estimate *net* profit when evaluating a buy.
 COMC_SELLER_FEE_PCT = 0.20
+COMC_PROCESSING_FEE_USD = 0.25
 
 
 def compute_comps(sales: list[Sale], window_days: int = 90) -> CompStats | None:
@@ -60,7 +62,7 @@ def evaluate_buy(listing: Listing, sales: list[Sale]) -> BuyCandidate | None:
 
     # Expected net = selling at lowest comp, minus fees, minus ask price.
     gross_sale = comps.lowest_usd
-    net_sale = gross_sale * (1 - COMC_SELLER_FEE_PCT)
+    net_sale = gross_sale * (1 - COMC_SELLER_FEE_PCT) - COMC_PROCESSING_FEE_USD
     expected_profit = net_sale - listing.ask_price_usd
     if expected_profit <= 0:
         return None
@@ -93,3 +95,12 @@ def reprice_after_week(current_price: float) -> float:
 
 def liquidation_price(cost_basis: float) -> float:
     return round(cost_basis * (1 - settings.strategy.liquidate_loss_pct), 2)
+
+
+def net_proceeds(sale_price: float) -> float:
+    """What you actually pocket from a sale, after COMC fees."""
+    return sale_price * (1 - COMC_SELLER_FEE_PCT) - COMC_PROCESSING_FEE_USD
+
+
+def realized_pnl(cost_basis: float, sale_price: float) -> float:
+    return net_proceeds(sale_price) - cost_basis

@@ -7,7 +7,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from . import engine, portfolio, scheduler, session
+from . import doctor as doctor_mod, engine, portfolio, scheduler, session, valuation
 from .config import settings
 
 
@@ -46,22 +46,45 @@ def reprice() -> None:
 
 @app.command(name="portfolio")
 def show_portfolio() -> None:
-    """Show current inventory and cost basis."""
+    """Show current inventory, cost basis, and realized P&L."""
     rows = portfolio.open_positions()
     table = Table(title="Open positions")
-    for col in ("listing_id", "title", "player", "cost_basis_usd", "current_list_price_usd", "status"):
+    for col in ("listing_id", "title", "player", "cost_basis", "list_price", "unrealized", "status"):
         table.add_column(col)
     for r in rows:
+        list_price = r["current_list_price_usd"]
+        unrealized = (valuation.net_proceeds(list_price) - r["cost_basis_usd"]) if list_price else None
         table.add_row(
             str(r["listing_id"]),
-            (r["title"] or "")[:60],
+            (r["title"] or "")[:50],
             r["player"] or "",
             f"${r['cost_basis_usd']:.2f}",
-            f"${r['current_list_price_usd']:.2f}" if r["current_list_price_usd"] else "-",
+            f"${list_price:.2f}" if list_price else "-",
+            f"${unrealized:+.2f}" if unrealized is not None else "-",
             r["status"],
         )
     console.print(table)
-    console.print(f"Cash deployed: ${portfolio.cash_spent():.2f} / ${settings.strategy.total_budget_usd:.2f}")
+
+    realized = portfolio.realized_pnl_total()
+    closed = len(portfolio.closed_positions())
+    console.print(
+        f"Cash deployed: ${portfolio.cash_spent():.2f} / "
+        f"${settings.strategy.total_budget_usd:.2f}    "
+        f"Realized P&L: ${realized:+.2f} over {closed} closed positions"
+    )
+
+
+@app.command()
+def doctor() -> None:
+    """Check that our DOM selectors still match COMC's live site.
+
+    Saves HTML snapshots to logs/doctor/ for selector tuning.
+    """
+    async def _go():
+        report = await doctor_mod.run_diagnostics()
+        for entry in report:
+            console.print(entry)
+    asyncio.run(_go())
 
 
 @app.command()

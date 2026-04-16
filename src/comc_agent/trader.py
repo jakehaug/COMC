@@ -14,6 +14,7 @@ from playwright.async_api import Page
 from . import portfolio, valuation
 from .config import settings
 from .human import hover_and_click, pause, type_text, warmup_browse, within_active_hours
+from .logging_setup import log
 from .models import BuyCandidate, Listing
 
 
@@ -88,6 +89,7 @@ async def execute_buy(page: Page, candidate: BuyCandidate) -> bool:
     await pause(2.0)
 
     portfolio.record_purchase(l, l.ask_price_usd)
+    log.info("bought %s at $%.2f (%s)", l.listing_id, l.ask_price_usd, l.title[:60])
     return True
 
 
@@ -126,11 +128,13 @@ async def reprice_stale_listings(page: Page) -> None:
             new_price = valuation.liquidation_price(row["cost_basis_usd"])
             await list_card_for_sale(page, row["listing_id"], new_price)
             portfolio.log_event("liquidate", {"listing_id": row["listing_id"], "price": new_price})
+            log.info("liquidated %s at $%.2f (age %dd)", row["listing_id"], new_price, age_days)
             continue
 
         if datetime.utcnow() - last >= timedelta(days=7):
             new_price = valuation.reprice_after_week(current)
             await list_card_for_sale(page, row["listing_id"], new_price)
+            log.info("repriced %s: $%.2f -> $%.2f", row["listing_id"], current, new_price)
 
 
 # --- Scan + act --------------------------------------------------------

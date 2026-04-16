@@ -98,6 +98,21 @@ async def human_scroll(page: Page, total_px: int | None = None) -> None:
         await asyncio.sleep(random.uniform(0.15, 0.7))
 
 
+async def goto_with_retry(page: Page, url: str, attempts: int = 3) -> bool:
+    """Navigate with exponential backoff. Humans retry a flaky page too."""
+    delay = 2.0
+    for i in range(attempts):
+        try:
+            await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
+            return True
+        except Exception:
+            if i == attempts - 1:
+                return False
+            await asyncio.sleep(delay + random.uniform(0, 1.0))
+            delay *= 2
+    return False
+
+
 async def warmup_browse(page: Page, warmup_urls: Sequence[str]) -> None:
     """Before doing anything consequential, visit a couple of innocuous pages."""
     n = min(settings.stealth.warmup_pages_before_action, len(warmup_urls))
