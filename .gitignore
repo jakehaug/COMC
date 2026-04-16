@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Agent state / secrets
+.env
+browser_state/
+data/*.db
+data/*.db-journal
+logs/
+*.log
+
+# OS
+.DS_Store
