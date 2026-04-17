@@ -21,31 +21,43 @@ Autonomous agent that buys and sells sports trading cards on [COMC](https://www.
 
 Override any of these in `config.yaml` or environment variables.
 
-## Setup
+## Quickstart (macOS)
+
+You don't need to know Python. Just open Terminal, `cd` into this folder, and run:
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
+./setup.sh        # one-time: installs Homebrew, Python, the agent, and a browser
+./comc login      # opens a browser, sign into COMC once - the session is saved
+./comc doctor     # checks that the agent can read COMC's pages
+./comc scan       # dry-run: shows what it *would* buy, without buying
+./comc scan --live  # actually buys (only do this after doctor looks good)
+./comc portfolio  # shows your inventory and P&L
+./comc run        # starts the hourly/daily autonomous loop
+```
+
+If `./setup.sh` fails, the most likely cause is a macOS security prompt asking
+to allow Terminal to run downloaded scripts - accept and re-run.
+
+## Setup (other platforms / manual)
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 playwright install chromium
-
-# One-time interactive login (saves session to ./browser_state/)
 comc-agent login
-
-# Dry-run: scan deals and show recommendations without buying
 comc-agent scan --dry-run
-
-# Run the full autonomous loop
 comc-agent run
 ```
 
 ## Commands
 
-- `comc-agent login` - open a browser so you can log in once; session is persisted
-- `comc-agent scan [--dry-run]` - find buy candidates
-- `comc-agent buy <listing-id>` - execute a single buy
-- `comc-agent reprice` - run the daily reprice + stop-loss sweep
-- `comc-agent portfolio` - show current inventory, cost basis, P&L
-- `comc-agent run` - start the scheduler (hourly scan, daily reprice)
+- `./comc login` - open a browser so you can log in once; session is persisted
+- `./comc doctor` - verify the agent can read COMC; saves HTML snapshots to `logs/doctor/`
+- `./comc scan` - dry-run: find buy candidates without buying
+- `./comc scan --live` - actually buys the candidates
+- `./comc reprice` - run the daily reprice + stop-loss sweep
+- `./comc portfolio` - show current inventory, cost basis, realized + unrealized P&L
+- `./comc run` - start the scheduler (hourly scan, daily reprice)
 
 ## Safety
 

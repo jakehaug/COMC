@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Thin wrapper so you don't have to activate a Python virtualenv manually.
+#
+# Usage: ./comc <command> [args...]
+#   e.g. ./comc login
+#        ./comc doctor
+#        ./comc scan
+#        ./comc scan --live
+#        ./comc portfolio
+#        ./comc run
+
+set -euo pipefail
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+cd "$SCRIPT_DIR"
+
+if [ ! -d .venv ]; then
+    echo "The agent isn't set up yet. Run: ./setup.sh"
+    exit 1
+fi
+
+# shellcheck disable=SC1091
+source .venv/bin/activate
+exec comc-agent "$@"
