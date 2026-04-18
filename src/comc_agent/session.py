@@ -12,12 +12,6 @@ from typing import AsyncIterator
 
 from playwright.async_api import BrowserContext, Page, async_playwright
 
-try:
-    from playwright_stealth import stealth_async
-    _HAS_STEALTH_LIB = True
-except ImportError:  # pragma: no cover
-    _HAS_STEALTH_LIB = False
-
 from .config import settings
 
 
@@ -91,14 +85,6 @@ async def browser_session() -> AsyncIterator[tuple[BrowserContext, Page]]:
             await context.add_init_script(_STEALTH_JS)
 
         page = context.pages[0] if context.pages else await context.new_page()
-        if settings.stealth.use_stealth_patches and _HAS_STEALTH_LIB:
-            # playwright-stealth patches dozens of additional fingerprints
-            # (iframe.contentWindow, chrome.loadTimes, codec detection, etc.)
-            # that pure JS init scripts can't easily cover.
-            try:
-                await stealth_async(page)
-            except Exception:
-                pass
         try:
             yield context, page
         finally:
