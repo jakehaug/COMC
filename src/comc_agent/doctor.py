@@ -1,9 +1,9 @@
 """Selector diagnostic tool.
 
-Walks the site the same way `scrape` does and reports, for each thing we
-expect to find (listing cards, price, sold history, add-to-cart button),
-whether our selectors actually matched anything. Saves HTML snapshots to
-`logs/doctor/` so the user can share them for selector tuning.
+Walks the site the same way `scrape` does and reports what the agent
+actually sees. We warm up via the homepage and reach /Cards by clicking a
+link (like a human would) rather than navigating directly - COMC serves
+different content depending on how you arrive.
 """
 from __future__ import annotations
 
@@ -17,69 +17,75 @@ from .logging_setup import log
 from .session import browser_session
 
 
-async def _save_html(page: Page, name: str) -> Path:
-    out_dir = settings.runtime.logs_dir / "doctor"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / f"{name}.html"
-    path.write_text(await page.content(), encoding="utf-8")
-    return path
-
-
-async def check_search(page: Page) -> dict:
-    url = f"{settings.runtime.base_url}/Cards"
-    await page.goto(url, wait_until="domcontentloaded")
-    await pause()
-    await human_scroll(page, total_px=900)
-    count = await page.evaluate(
-        """
-        () => document.querySelectorAll('[data-listing-id], a[href*="/Cards/"]').length
-        """
+async def _page_report(page: Page, label: str) -> dict:
+    """Pull the human-readable info we need to diagnose what's on screen."""
+    title = await page.title()
+    body_sample = await page.evaluate(
+        "() => (document.body ? document.body.innerText : '').slice(0, 800)"
     )
-    path = await _save_html(page, "search")
-    return {"url": url, "matched_cards": count, "snapshot": str(path)}
+    is_blocked = any(
+        phrase in body_sample.lower()
+        for phrase in ("page not available", "access denied", "captcha",
+                       "unusual activity", "blocked", "not found", "404")
+    )
+    snapshot = settings.runtime.logs_dir / "doctor" / f"{label}.html"
+    snapshot.parent.mkdir(parents=True, exist_ok=True)
+    snapshot.write_text(await page.content(), encoding="utf-8")
+    screenshot = snapshot.with_suffix(".png")
+    try:
+        await page.screenshot(path=str(screenshot), full_page=False)
+    except Exception:
+        screenshot = None
+    return {
+        "title": title,
+        "final_url": page.url,
+        "body_sample": body_sample.replace("\n", " | ")[:400],
+        "looks_blocked": is_blocked,
+        "snapshot_html": str(snapshot),
+        "snapshot_png": str(screenshot) if screenshot else None,
+    }
 
 
-async def check_listing_detail(page: Page) -> dict:
-    """Open the first listing from search results and inspect the detail page."""
+async def check_homepage(page: Page) -> dict:
+    await page.goto(settings.runtime.base_url, wait_until="domcontentloaded")
+    await pause()
+    await human_scroll(page, total_px=600)
+    return {"check": "homepage", **(await _page_report(page, "homepage"))}
+
+
+async def check_browse_via_menu(page: Page) -> dict:
+    """Reach the browse page by clicking a menu link, like a human."""
+    await page.goto(settings.runtime.base_url, wait_until="domcontentloaded")
+    await pause()
+    # Try a few likely menu link texts.
+    for label in ("Buy Cards", "Buy", "Shop", "Browse", "Cards", "Marketplace"):
+        link = page.get_by_role("link", name=label, exact=False)
+        if await link.count() > 0:
+            try:
+                await link.first.click()
+                await page.wait_for_load_state("domcontentloaded")
+                await pause()
+                rep = await _page_report(page, "browse_via_menu")
+                rep["clicked_label"] = label
+                return {"check": "browse_via_menu", **rep}
+            except Exception:
+                continue
+    return {"check": "browse_via_menu", "error": "no browse link found on homepage"}
+
+
+async def check_direct_cards_url(page: Page) -> dict:
     await page.goto(f"{settings.runtime.base_url}/Cards", wait_until="domcontentloaded")
     await pause()
-    first = await page.evaluate(
-        "() => {"
-        "  const a = document.querySelector('a[href*=\"/Cards/\"]');"
-        "  return a ? a.href : null;"
-        "}"
-    )
-    if not first:
-        return {"error": "no listing link found on /Cards"}
-    await page.goto(first, wait_until="domcontentloaded")
-    await pause()
-    fields = await page.evaluate(
-        """
-        () => {
-          const labels = ['player', 'year', 'set', 'card', 'sport', 'grade', 'seller'];
-          const found = {};
-          for (const l of labels) {
-            const re = new RegExp('^\\\\s*' + l, 'i');
-            for (const el of document.querySelectorAll('dt,th,span,div,li')) {
-              if (re.test(el.innerText || '')) {
-                const sib = el.nextElementSibling;
-                if (sib) { found[l] = (sib.innerText || '').trim().slice(0, 80); break; }
-              }
-            }
-          }
-          return found;
-        }
-        """
-    )
-    path = await _save_html(page, "listing_detail")
-    return {"url": first, "fields_found": fields, "snapshot": str(path)}
+    return {"check": "direct /Cards", **(await _page_report(page, "direct_cards"))}
 
 
 async def run_diagnostics() -> list[dict]:
     report: list[dict] = []
     async with browser_session() as (_ctx, page):
-        log.info("doctor: checking search page...")
-        report.append({"check": "search", **(await check_search(page))})
-        log.info("doctor: checking listing detail...")
-        report.append({"check": "listing_detail", **(await check_listing_detail(page))})
+        log.info("doctor: homepage...")
+        report.append(await check_homepage(page))
+        log.info("doctor: browse via menu...")
+        report.append(await check_browse_via_menu(page))
+        log.info("doctor: direct /Cards...")
+        report.append(await check_direct_cards_url(page))
     return report

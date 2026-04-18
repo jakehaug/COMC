@@ -5,6 +5,7 @@ description = "Autonomous trading agent for COMC sports cards"
 requires-python = ">=3.11"
 dependencies = [
     "playwright>=1.44",
+    "playwright-stealth>=1.0.6",
     "pydantic>=2.6",
     "pydantic-settings>=2.2",
     "apscheduler>=3.10",
