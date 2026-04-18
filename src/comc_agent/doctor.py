@@ -13,6 +13,7 @@ from pathlib import Path
 
 from playwright.async_api import Page
 
+from .cloudflare import ensure_past_challenge, is_cloudflare_challenge
 from .config import settings
 from .logging_setup import log
 from .session import browser_session
@@ -55,9 +56,15 @@ async def _page_report(page: Page, label: str) -> dict:
     except Exception:
         final_url = "(closed)"
 
+    try:
+        on_challenge = await is_cloudflare_challenge(page)
+    except Exception:
+        on_challenge = False
+
     return {
         "title": title,
         "final_url": final_url,
+        "cloudflare_challenge": on_challenge,
         "body_sample": body_sample.replace("\n", " | ")[:600],
         "looks_blocked": is_blocked,
         "snapshot_html": str(snapshot) if snapshot else None,
@@ -69,6 +76,7 @@ async def _safe_goto(page: Page, url: str) -> bool:
     try:
         await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
         await asyncio.sleep(2)
+        await ensure_past_challenge(page)
         return True
     except Exception as e:
         log.warning("goto %s failed: %s", url, e)

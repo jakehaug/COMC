@@ -77,9 +77,11 @@ say "Installing the agent and dependencies (this can take a minute)..."
 python -m pip install --upgrade pip >/dev/null
 python -m pip install -e ".[dev]"
 
-# 5. Playwright's Chromium
-say "Downloading the browser the agent will drive..."
+# 5. Browsers (both Playwright's and Patchright's Chromium builds)
+say "Downloading the browsers the agent will drive..."
 python -m playwright install chromium
+# Patchright uses its own patched Chromium. The install step is idempotent.
+python -m patchright install chromium 2>/dev/null || true
 
 say "Done!"
 cat <<'EOF'

@@ -10,7 +10,14 @@ from __future__ import annotations
 import contextlib
 from typing import AsyncIterator
 
-from playwright.async_api import BrowserContext, Page, async_playwright
+# Patchright is a fork of Playwright with Cloudflare-resistant stealth patches
+# baked in. It's a drop-in API replacement, so everything else stays the same.
+try:
+    from patchright.async_api import BrowserContext, Page, async_playwright  # type: ignore[import-not-found]
+    _USING_PATCHRIGHT = True
+except ImportError:  # pragma: no cover - fallback to vanilla
+    from playwright.async_api import BrowserContext, Page, async_playwright
+    _USING_PATCHRIGHT = False
 
 from .config import settings
 
@@ -93,7 +100,9 @@ async def browser_session() -> AsyncIterator[tuple[BrowserContext, Page]]:
 
 async def is_logged_in(page: Page) -> bool:
     """Best-effort check. COMC login state is exposed via an "Account" menu."""
+    from .cloudflare import ensure_past_challenge
     await page.goto(f"{settings.runtime.base_url}/", wait_until="domcontentloaded")
+    await ensure_past_challenge(page)
     # The header shows "Sign In" when logged out and the username when logged in.
     try:
         sign_in = page.get_by_role("link", name="Sign In")
@@ -106,10 +115,12 @@ async def interactive_login() -> None:
     """Open a browser window for the user to log in once. The persistent context
     retains the session afterward; subsequent runs don't need credentials.
     """
+    from .cloudflare import ensure_past_challenge
     async with browser_session() as (_ctx, page):
         # Go to the homepage; the user clicks Sign In from there. The exact
         # login URL path is versioned by COMC so we don't hardcode it.
         await page.goto(settings.runtime.base_url)
+        await ensure_past_challenge(page)
         print("Sign in to COMC in the browser window (including any 2FA).")
         print("When you're done, come back here - the agent auto-detects login.")
         try:

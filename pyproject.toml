@@ -4,6 +4,9 @@ version = "0.1.0"
 description = "Autonomous trading agent for COMC sports cards"
 requires-python = ">=3.11"
 dependencies = [
+    # patchright is a drop-in Playwright fork with stealth patches baked in,
+    # specifically targeted at Cloudflare-style bot detection.
+    "patchright>=1.48",
     "playwright>=1.44",
     "pydantic>=2.6",
     "pydantic-settings>=2.2",
