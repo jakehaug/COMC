@@ -21,6 +21,15 @@ say() { printf "\033[1;36m==>\033[0m %s\n" "$*"; }
 warn() { printf "\033[1;33m!!\033[0m %s\n" "$*" >&2; }
 
 # 1. Homebrew
+# If brew is installed but not on the PATH in this shell, pull it onto PATH
+# so we don't accidentally reinstall.
+for brewpath in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+    if [ -x "$brewpath" ] && ! command -v brew >/dev/null 2>&1; then
+        eval "$($brewpath shellenv)"
+        break
+    fi
+done
+
 if ! command -v brew >/dev/null 2>&1; then
     say "Installing Homebrew (you may be asked for your password)..."
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
