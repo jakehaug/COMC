@@ -107,13 +107,14 @@ async def interactive_login() -> None:
     retains the session afterward; subsequent runs don't need credentials.
     """
     async with browser_session() as (_ctx, page):
-        await page.goto(f"{settings.runtime.base_url}/Account/LogOn")
-        print("Complete login (including any 2FA) in the browser window.")
-        print("Press Ctrl+C here when you're signed in - or just close the window.")
-        # Wait until the sign-in link disappears from the header.
+        # Go to the homepage; the user clicks Sign In from there. The exact
+        # login URL path is versioned by COMC so we don't hardcode it.
+        await page.goto(settings.runtime.base_url)
+        print("Sign in to COMC in the browser window (including any 2FA).")
+        print("When you're done, come back here - the agent auto-detects login.")
         try:
             await page.wait_for_function(
-                "() => !document.body.innerText.match(/Sign In/i)",
+                "() => !document.body.innerText.match(/\\bSign In\\b/i)",
                 timeout=10 * 60 * 1000,
             )
             print("Login detected. Session saved.")
